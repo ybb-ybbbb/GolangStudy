@@ -22,7 +22,7 @@ func main() {
 		for i := 0; i < 3; i++ {
 			c3 <- i
 		}
-		close(c3)
+		close(c3) //关闭channel后，再往该channel发送数据会报错，但是可以从该channel取数据
 	}()
 	time.Sleep(2 * time.Second) //给时间等待协程执行
 	num1 := <-c1                //读数据，<-与c1中间不能隔空格
@@ -31,12 +31,19 @@ func main() {
 		num2 := <-c2
 		fmt.Println("num2=", num2)
 	}
-	for {
-		if value, ok := <-c3; ok {
-			fmt.Println("num3=", value)
-		} else {
-			break
+
+	/*
+		for {
+			if value, ok := <-c3; ok {	//c3如果存在ok就会一直返回true
+				fmt.Println("num3=", value)
+			} else {
+				break
+			}
 		}
+	*/
+
+	for data := range c3 { //range可以读取channel数据，若有数据就返回，若无数据则阻塞等待
+		fmt.Println("num3=", data)
 	}
 
 	fmt.Println("main goroutine out")
