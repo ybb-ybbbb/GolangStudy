@@ -32,7 +32,7 @@ func (this *Server) BroadCast(user *User, msg string) {
 	this.Message <- sendMsg
 }
 
-// 监听广播信息channel（Message）的goroutine，有消息就发送给全部在线User
+// 监听广播信息channel（Message）的goroutine，有消息就广播
 func (this *Server) ListenMessager() {
 	for {
 		msg := <-this.Message
@@ -47,14 +47,9 @@ func (this *Server) ListenMessager() {
 
 // 业务方法
 func (this *Server) Handler(conn net.Conn) {
-	user := NewUser(conn)
-	//用户上线，将用户加入map
-	this.mapLock.Lock() //加写锁，加读锁是RLock
-	this.OnlineMap[user.Name] = user
-	this.mapLock.Unlock() //解写锁，解读锁是RUnlock
-
-	//广播该用户上线信息
-	this.BroadCast(user, "已上线")
+	user := NewUser(conn, this)
+	//用户上线
+	user.Online()
 
 	//接受用户发送的信息
 	go func() {
@@ -62,7 +57,8 @@ func (this *Server) Handler(conn net.Conn) {
 		for {
 			n, err := conn.Read(buf) //Read 方法会阻塞当前 Goroutine，直到从网络连接中读取到数据，或者发生错误，或者连接关闭。
 			if err == io.EOF {       //err == io.EOF这是唯一明确表示连接关闭的标准方式。(此时n=0)
-				this.BroadCast(user, "下线")
+				//用户下线
+				user.Offline()
 				return
 			}
 			if err != nil && err != io.EOF {
@@ -72,8 +68,8 @@ func (this *Server) Handler(conn net.Conn) {
 			//提取用户发来的信息
 			msg := string(buf[:n-1])
 
-			//将信息进行广播（群聊）
-			this.BroadCast(user, msg)
+			//处理用户消息的业务
+			user.DoMessage(msg)
 		}
 	}()
 
