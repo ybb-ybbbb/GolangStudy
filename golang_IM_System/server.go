@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"sync"
 )
@@ -55,6 +56,27 @@ func (this *Server) Handler(conn net.Conn) {
 	//广播该用户上线信息
 	this.BroadCast(user, "已上线")
 
+	//接受用户发送的信息
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := conn.Read(buf) //Read 方法会阻塞当前 Goroutine，直到从网络连接中读取到数据，或者发生错误，或者连接关闭。
+			if err == io.EOF {       //err == io.EOF这是唯一明确表示连接关闭的标准方式。(此时n=0)
+				this.BroadCast(user, "下线")
+				return
+			}
+			if err != nil && err != io.EOF {
+				fmt.Println("Conn Read err:", err)
+				return
+			}
+			//提取用户发来的信息
+			msg := string(buf[:n-1])
+
+			//将信息进行广播（群聊）
+			this.BroadCast(user, msg)
+		}
+	}()
+
 	//阻塞
 	select {}
 }
@@ -70,7 +92,7 @@ func (this *Server) Start() {
 	//close listen socket
 	defer lisenner.Close()
 
-	//启动监听Message的goroutine
+	//启动监听广播信息channel（Message）的goroutine
 	go this.ListenMessager()
 
 	for {
