@@ -58,14 +58,18 @@ func (this *Server) Handler(conn net.Conn) {
 	//接受用户发送的信息
 	go func() {
 		buf := make([]byte, 4096)
-		for {
+		for !user.isClose {
 			n, err := conn.Read(buf) //Read 方法会阻塞当前 Goroutine，直到从网络连接中读取到数据，或者发生错误，或者连接关闭。
 			if err == io.EOF {       //err == io.EOF这是唯一明确表示连接关闭的标准方式。(此时n=0)
 				//用户下线
 				user.Offline()
 				return
 			}
-			if err != nil && err != io.EOF {
+			if err != nil {
+				// 检查是否是连接关闭相关的错误
+				if err.Error() == " use of closed network connection" {
+					return // 如果是连接关闭错误，直接返回，不打印错误信息
+				}
 				fmt.Println("Conn Read err:", err)
 				return
 			}
@@ -88,10 +92,10 @@ func (this *Server) Handler(conn net.Conn) {
 		case <-time.After(time.Second * 10):
 			//time.After()的返回值为channel，到时间后会可读，重新执行该方法会重置时间
 			user.SendMsg("您长时间未操作已被踢")
-			//销毁资源（关闭user的channel）
-			close(user.C)
-			//net.Conn中的Close() 方法用于关闭网络连接
-			conn.Close()
+
+			user.Offline()
+
+			return
 
 		}
 	}
