@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"time"
 )
 
 type Server struct {
@@ -51,6 +52,9 @@ func (this *Server) Handler(conn net.Conn) {
 	//用户上线
 	user.Online()
 
+	//用一个channel来监控用户是否活跃，用channel主要是为了方便后面使用select
+	isAlive := make(chan bool)
+
 	//接受用户发送的信息
 	go func() {
 		buf := make([]byte, 4096)
@@ -65,16 +69,32 @@ func (this *Server) Handler(conn net.Conn) {
 				fmt.Println("Conn Read err:", err)
 				return
 			}
-			//提取用户发来的信息
+			//提取用户发来的信息,n-1是为了减掉"\n"
 			msg := string(buf[:n-1])
 
 			//处理用户消息的业务
 			user.DoMessage(msg)
+
+			//更新用户活跃状态
+			isAlive <- true
 		}
 	}()
 
-	//阻塞
-	select {}
+	//超时踢出服务器
+	for {
+		select {
+		case <-isAlive:
+			//如果isAlive为true进入该case，但是不进行任何操作，golang中case执行完会直接跳出select，跳出后外层for循环会让select中的case的判断条件再执行以更新time.After
+		case <-time.After(time.Second * 10):
+			//time.After()的返回值为channel，到时间后会可读，重新执行该方法会重置时间
+			user.SendMsg("您长时间未操作已被踢")
+			//销毁资源（关闭user的channel）
+			close(user.C)
+			//net.Conn中的Close() 方法用于关闭网络连接
+			conn.Close()
+
+		}
+	}
 }
 
 // 启动sever
