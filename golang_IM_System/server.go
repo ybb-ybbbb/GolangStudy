@@ -89,7 +89,7 @@ func (this *Server) Handler(conn net.Conn) {
 		select {
 		case <-isAlive:
 			//如果isAlive为true进入该case，但是不进行任何操作，golang中case执行完会直接跳出select，跳出后外层for循环会让select中的case的判断条件再执行以更新time.After
-		case <-time.After(time.Second * 10):
+		case <-time.After(time.Second * 300):
 			//time.After()的返回值为channel，到时间后会可读，重新执行该方法会重置时间
 			user.SendMsg("您长时间未操作已被踢")
 
